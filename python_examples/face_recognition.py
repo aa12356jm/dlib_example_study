@@ -45,24 +45,20 @@
 #       pip install scikit-image
 #   Or downloaded from http://scikit-image.org/download.html. 
 
+'''
+人脸识别模块，人脸检测--提取人脸图像为128大小的向量特征
+'''
 import sys
 import os
 import dlib
 import glob
+import cv2
 from skimage import io
 
-if len(sys.argv) != 4:
-    print(
-        "Call this program like this:\n"
-        "   ./face_recognition.py shape_predictor_5_face_landmarks.dat dlib_face_recognition_resnet_model_v1.dat ../examples/faces\n"
-        "You can download a trained facial shape predictor and recognition model from:\n"
-        "    http://dlib.net/files/shape_predictor_5_face_landmarks.dat.bz2\n"
-        "    http://dlib.net/files/dlib_face_recognition_resnet_model_v1.dat.bz2")
-    exit()
-
-predictor_path = sys.argv[1]
-face_rec_model_path = sys.argv[2]
-faces_folder_path = sys.argv[3]
+#加载模型文件
+predictor_path = 'shape_predictor_68_face_landmarks.dat'
+face_rec_model_path = 'dlib_face_recognition_resnet_model_v1.dat'
+faces_folder_path = '../cpp_examples/faces'
 
 # Load all the models we need: a detector to find the faces, a shape predictor
 # to find face landmarks so we can precisely localize the face, and finally the
@@ -71,21 +67,21 @@ detector = dlib.get_frontal_face_detector() #人脸检测器
 sp = dlib.shape_predictor(predictor_path)
 facerec = dlib.face_recognition_model_v1(face_rec_model_path) #人脸识别器
 
-win = dlib.image_window()
 
-# Now process all the images
-#读取文件夹下的所有图像
-for f in glob.glob(os.path.join(faces_folder_path, "*.jpg")):
-    print("Processing file: {}".format(f))
-    img = io.imread(f)
+#打开摄像头
+cap = cv2.VideoCapture(0)
+while (1):
+    # get a frame
+    ret, frame = cap.read()
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)#将BGR转换为RGB格式
 
-    win.clear_overlay()
-    win.set_image(img)
-
-    # Ask the detector to find the bounding boxes of each face. The 1 in the
-    # second argument indicates that we should upsample the image 1 time. This
-    # will make everything bigger and allow us to detect more faces.
-    dets = detector(img, 1) #检测图像中的人脸
+    t1 = cv2.getTickCount()  # 检测开始前
+    # Run detection
+    dets = detector(frame, 1)  # 检测图像中的人脸
+    t2 = cv2.getTickCount()  # 检测结束
+    # 总检测时间
+    t = (t2 - t1) / cv2.getTickFrequency()
+    print("检测当前帧的时间为：{}", t)
     print("Number of faces detected: {}".format(len(dets)))
 
     # Now process each face we found.
@@ -93,19 +89,14 @@ for f in glob.glob(os.path.join(faces_folder_path, "*.jpg")):
         print("Detection {}: Left: {} Top: {} Right: {} Bottom: {}".format(
             k, d.left(), d.top(), d.right(), d.bottom()))
         # Get the landmarks/parts for the face in box d.
-        shape = sp(img, d) #人脸图像区域
-        # Draw the face landmarks on the screen so we can see what face is currently being processed.
-        win.clear_overlay()
-        win.add_overlay(d)
-        win.add_overlay(shape)
+        shape = sp(frame, d)  # 人脸图像区域
 
         # Compute the 128D vector that describes the face in img identified by
         # shape.  In general, if two face descriptor vectors have a Euclidean
         # distance between them less than 0.6 then they are from the same
         # person, otherwise they are from different people. Here we just print
         # the vector to the screen.
-        face_descriptor = facerec.compute_face_descriptor(img, shape)  #把人脸图像编码为128维的向量
-        print(face_descriptor)
+        face_descriptor = facerec.compute_face_descriptor(frame, shape)  # 把人脸图像编码为128维的向量
         # It should also be noted that you can also call this function like this:
         #  face_descriptor = facerec.compute_face_descriptor(img, shape, 100)
         # The version of the call without the 100 gets 99.13% accuracy on LFW
@@ -117,8 +108,12 @@ for f in glob.glob(os.path.join(faces_folder_path, "*.jpg")):
         # the face and returns the average result.  You could also pick a more
         # middle value, such as 10, which is only 10x slower but still gets an
         # LFW accuracy of 99.3%.
-
-
-        dlib.hit_enter_to_continue()
+        #print(face_descriptor)
+    # show a frame
+    cv2.imshow("capture", frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+cap.release()
+cv2.destroyAllWindows()
 
 
